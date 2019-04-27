@@ -38,8 +38,11 @@ struct Image{
 };
 
 struct Node{
-	unsigned int x;
-	unsigned int y;
+	unsigned int linear_idx;
+	unsigned int rank;
+	unsigned int parent;
+	//unsigned int x;
+	//unsigned int y;
 };
 
 struct Edge{
@@ -51,8 +54,16 @@ struct Edge{
 };
 
 struct Graph{
+	struct Node *nodes;
 	struct Edge* edges;
 	unsigned int num_edges;
+	unsigned int num_nodes;
+};
+
+struct Region{
+	unsigned int size;
+	unsigned int rep;
+	unsigned int credit;
 };
 
 void usage(){
@@ -132,6 +143,8 @@ struct Graph* build_graph(struct Image image){
 	unsigned int width = image.width;
 	graph->num_edges = width * height * 2 - image.width - image.height;
 	graph->edges = new Edge[graph->num_edges];
+	graph->num_nodes = width* height;
+	graph->nodes = new Node[graph->num_nodes];
 
 	int i, j;
 	//can take num edges now
@@ -141,6 +154,12 @@ struct Graph* build_graph(struct Image image){
 	for(i = 0 ; i < width; i++){
 		for(j = 0; j < height; j++){
 			int curr_idx = j * width + i;
+
+			//Might not need linear index
+			graph->nodes[curr_idx].linear_idx = curr_idx;
+			graph->nodes[curr_idx].rank = 1;
+			graph->nodes[curr_idx].parent = curr_idx;
+
 
 			//Check the edge case
 			if(j + 1 < height){
@@ -163,60 +182,57 @@ struct Graph* build_graph(struct Image image){
 	return graph;
 }
 
-void swap(struct Edge* e1, struct Edge* e2){
-	
-	struct Edge temp;
 
-	temp.n1 = e1->n1;
-	temp.n2 = e1->n2;
-	temp.weight = e1->weight;
-
-	e1->n1 = e2->n1;
-	e1->n2 = e2->n2;
-	e1->weight = e2->weight;
-
-	e2->n1 = temp.n1;
-	e2->n2 = temp.n2;
-	e2->weight = temp.weight;
-
+unsigned int union_find(struct Node* nodes, unsigned int node_id){
+	return nodes[node_id].parent = (node_id == nodes[node_id].parent ? node_id : union_find(nodes, nodes[node_id].parent));
 }
 
-void quickSort(struct Edge* edges, int l, int r)
-{
-	//printf("l:%d, r:%d\n", l, r);
-    // Base case: No need to sort arrays of length <= 1
-    if (l >= r)
-    {
-        return;
-    }
-    
-    // Choose pivot to be the last element in the subarray
-    int pivot = edges[r].weight;
+unsigned int union_unite(struct Node *nodes, unsigned int n1, unsigned int n2){
+	n1 = union_find(nodes, n1);
+	n2 = union_find(nodes, n2);
+	if(n1 != n2){
+		if(nodes[n2].rank > nodes[n1].rank){
+			std::swap(n1, n2);
+		}
+		nodes[n2].parent = nodes[n1].parent;
+		nodes[n1].rank += nodes[n2].rank;
+	}
+	//maybe check for same ranks here??
+	return n1;
+}
+int computeCredit(int regionSize) {
+	return sqrt(4 * 3.14 * regionSize);
+}
 
-    // Index indicating the "split" between elements smaller than pivot and 
-    // elements greater than pivot
-    int cnt = l;
+struct Region* find_regions(unsigned int width, 
+	unsigned int height, unsigned int minRegionSize, struct Node* nodes){
+	int size = width * height;
+	printf("Size :%d\n", size);
+	struct Region* regions = new Region[width*height];
 
-    // Traverse through array from l to r
-    for (int i = l; i <= r; i++)
-    {
-        // If an element less than or equal to the pivot is found...
-        if (edges[i].weight <= pivot)
-        {
-            // Then swap arr[cnt] and arr[i] so that the smaller element arr[i] 
-            // is to the left of all elements greater than pivot
-            swap(&edges[cnt], &edges[i]);
+	//memset(regions, 0, sizeof(regions)*height*width);
+	int i;
+	for(i = 0; i < width* height ; i ++){
+		regions[i].size = 0;
+		regions[i].credit = 0;
+		regions[i].rep = 0;
+	}
+	printf("Error?\n");
+	for (i = 0; i < width*height; i++) {
+		printf("from 1st for i %d\n", i);
+		regions[union_find(nodes, i)].size++;
+		regions[union_find(nodes, i)].rep = union_find(nodes, i);
+	}
+	printf("Error first for?\n");
+	for (int i = 0; i < width*height; i++) {
+		if (regions[i].size >= minRegionSize)
+			regions[i].credit = computeCredit(regions[i].size);
+		else
+			regions[i].credit = 100000;
+	}
+	printf("Error first second?\n");
+	return regions;
 
-            // Make sure to increment cnt so we can keep track of what to swap
-            // arr[i] with
-            cnt++;
-        }
-    }
-    
-    // NOTE: cnt is currently at one plus the pivot's index 
-    // (Hence, the cnt-2 when recursively sorting the left side of pivot)
-    quickSort(edges, l, cnt-2); // Recursively sort the left side of pivot
-    quickSort(edges, cnt, r);   // Recursively sort the right side of pivot
 }
 
 bool operator<(const struct Edge &a, const struct Edge &b) {
@@ -228,6 +244,7 @@ struct Graph* sort_graph(struct Graph* graph){
 
 	//Using quick sort
 	//quickSort(graph->edges, 0, (int)(graph->num_edges - 1));
+	//quick sort was taking too long so switched to std::sort
 	int num_edges = graph->num_edges;
 	Edge *edges =  graph->edges;
 	std::sort(edges, edges + num_edges);
@@ -236,9 +253,45 @@ struct Graph* sort_graph(struct Graph* graph){
 }
 
 
-// lower_bound_combine(struct Graph* graph, unsigned int min_weight, unsigned int max_weight){
+struct Graph* lower_bound_combine(struct Graph* graph, 
+	unsigned int min_weight){
+	int i;
+	for(i = 0; i < graph->num_edges; i++){
+		if(graph->edges[i].weight <= min_weight){
+			union_unite(graph->nodes, graph->edges[i].n1, graph->edges[i].n2);
 
-// }
+		}
+	}
+
+ }
+
+bool isUnited(struct Node* nodes, unsigned int a, unsigned int b) {
+		return union_find(nodes, a) == union_find(nodes, b);
+	}
+
+
+void edge_heursitc(struct Graph* graph, struct Region* regions, unsigned int minWeight){
+
+ 	struct Edge* edges = graph->edges;
+ 	unsigned int edge_cnt = graph->num_edges;
+ 	int i;
+ 	for(i = 0; i < edge_cnt; i++){
+ 		if(edges[i].weight >= minWeight){
+ 			continue;
+ 		}
+ 		if(!isUnited(graph->nodes, edges[i].n1, edges[i].n2)){
+ 			unsigned int a = union_find(graph->nodes, edges[i].n1);
+			unsigned int b = union_find(graph->nodes, edges[i].n2);
+			int credit = std::min(regions[a].credit, regions[b].credit);
+			if (credit > edges[i].weight) {
+				int s = union_unite(graph->nodes, a, b);
+				regions[s].credit = credit - edges[i].weight;
+			}
+
+ 		}
+ 	}
+
+ }
 
 int main(int argc, char *argv[]){
 
@@ -299,14 +352,23 @@ int main(int argc, char *argv[]){
 	graph = build_graph(image);
 	//sort edges according to their weights
 	graph = sort_graph(graph);
-	printf("after sort\n");
+	//graph now has the sorted edges. 
+	//add nodes to it
+
+	//graph = mege_nodes(graph);
+
+	graph = lower_bound_combine(graph, minWeight);
 	//combine the ones below the minimum weight
-	//graph = lower_bound_combine(graph);
+	//error in this function
+	printf("Lower Bound?? \n");
+	//printf()
+	struct Region* regions = find_regions(image.width, image.height, minRegion, graph);
+	printf("find_regions?\n");	
 	//Use credit to expand the remaining regions
-	//edge_heursitc();
-
+	edge_heursitc(graph, regions, minWeight);
+	printf("edges?\n");
+	//count the number of regions
+	//make another array??
 	//Finally write to the output image
-	//outImage
-	
-
+	//outImage(regions)
 }
