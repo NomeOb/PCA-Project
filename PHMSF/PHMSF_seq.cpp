@@ -362,7 +362,7 @@ int main(int argc, char *argv[]){
 	//error in this function
 	printf("Lower Bound?? \n");
 	//printf()
-	struct Region* regions = find_regions(image.width, image.height, minRegion, graph);
+	struct Region* regions = find_regions(image.width, image.height, minRegion, graph->nodes);
 	printf("find_regions?\n");	
 	//Use credit to expand the remaining regions
 	edge_heursitc(graph, regions, minWeight);
