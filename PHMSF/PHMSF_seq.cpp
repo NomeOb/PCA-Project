@@ -38,7 +38,7 @@ struct Image{
 };
 
 struct Node{
-	unsigned int linear_idx;
+	//unsigned int linear_idx;
 	unsigned int rank;
 	unsigned int parent;
 	//unsigned int x;
@@ -46,7 +46,7 @@ struct Node{
 };
 
 struct Edge{
-	unsigned int weight;
+	int weight;
 	//struct Node n1;
 	//struct Node n2;
 	unsigned int n1;
@@ -118,9 +118,9 @@ struct Image loadImage(std::string inpImg){
 
 	img.pixels = new Pixel[w*h];
 	for (int i = 0; i < w*h; i++){
-		img.pixels->R = tmp[i * 4];
-		img.pixels->G = tmp[i * 4 + 1];
-		img.pixels->B = tmp[i * 4 + 2];
+		img.pixels[i].R = tmp[i * 4];
+		img.pixels[i].G = tmp[i * 4 + 1];
+		img.pixels[i].B = tmp[i * 4 + 2];
 	}
 	return img;
 }
@@ -133,11 +133,22 @@ std::string outImageName(std::string outImg){
 	return outImg;
 }
 
-unsigned int getL2norm(struct Pixel* n1, struct Pixel* n2){
-	return sqrt(pow((n1->R - n2->R), L2_POWER_FACTOR) + pow((n1->G - n2->G), L2_POWER_FACTOR) + pow((n1->B - n2->B), L2_POWER_FACTOR));
+int getL2norm(struct Pixel p1, struct Pixel p2){
+	int rDiff = (int)(p1.R - p2.R);
+	int gDiff = (int)(p1.G - p2.G);
+	int bDiff = (int)(p1.B - p2.B);
+	rDiff = rDiff*rDiff;
+	gDiff = gDiff*gDiff;
+	bDiff = bDiff*bDiff;
+	int res = 4 *sqrt(rDiff + gDiff + bDiff);
+	//printf("res %d \n", res);
+	return res;
+
+	//return sqrt(pow((n1->R - n2->R), L2_POWER_FACTOR) + pow((n1->G - n2->G), L2_POWER_FACTOR) + pow((n1->B - n2->B), L2_POWER_FACTOR));
+	//printf("n1 %d n2 %d w %u\n", , top_idx, graph->edges[edge_cnt].weight);
 }
 
-struct Graph* build_graph(struct Image image){
+struct Graph* build_graph(struct Image image, int maxWeight){
 	struct Graph* graph = new Graph(); //can do malloc also
 	unsigned int height = image.height;
 	unsigned int width = image.width;
@@ -151,30 +162,47 @@ struct Graph* build_graph(struct Image image){
 	//Later can move it curr_edges and then sort
 	//checking only top and right edges
 	int edge_cnt = 0;
-	for(i = 0 ; i < width; i++){
-		for(j = 0; j < height; j++){
-			int curr_idx = j * width + i;
+	for(i = 0 ; i < height; i++){
+		for(j = 0; j < width; j++){
+			int curr_idx = i * width + j;
 
+			//printf("Pixel at curr [%d]: R = %u G= %u B= %u \n",curr_idx, image.pixels[curr_idx].R, image.pixels[curr_idx].G, image.pixels[curr_idx].B);
 			//Might not need linear index
-			graph->nodes[curr_idx].linear_idx = curr_idx;
+			//graph->nodes[curr_idx].linear_idx = curr_idx;
 			graph->nodes[curr_idx].rank = 1;
 			graph->nodes[curr_idx].parent = curr_idx;
 
 
 			//Check the edge case
-			if(j + 1 < height){
+			if(i + 1 < height){
 				int top_idx = curr_idx + width;
-				graph->edges[edge_cnt].n1 = curr_idx;
-				graph->edges[edge_cnt].n2 = top_idx; 
-				graph->edges[edge_cnt].weight = getL2norm(&image.pixels[curr_idx], &image.pixels[top_idx]);
-				edge_cnt++;
+				int weight = getL2norm(image.pixels[curr_idx], image.pixels[top_idx]);
+				if(weight <= maxWeight){
+					graph->edges[edge_cnt].n1 = curr_idx;
+					graph->edges[edge_cnt].n2 = top_idx; 
+					graph->edges[edge_cnt].weight = weight;
+					edge_cnt++;
+				}
+
+				
+				//printf("i %d, j %d n1 %d n2 %d w %u\n", i, j, curr_idx, top_idx, graph->edges[edge_cnt].weight);
+				//printf("calWeightR %d, calWeightG %d, calWeightB %d\n", image.pixels[top_idx].R - image.pixels[curr_idx].R, image.pixels[top_idx].G - image.pixels[curr_idx].G, image.pixels[top_idx].B - image.pixels[curr_idx].B);
+				//printf("Pixel at top [%d]: R = %u G= %u B= %u \n",top_idx, image.pixels[top_idx].R, image.pixels[top_idx].G, image.pixels[top_idx].B);
+				
 			}
-			if(i + 1 < width){
+			if(j + 1 < width){
 				int right_idx = curr_idx + 1;
-				graph->edges[edge_cnt].n1 = curr_idx;
-				graph->edges[edge_cnt].n2 = right_idx; 
-				graph->edges[edge_cnt].weight = getL2norm(&image.pixels[curr_idx], &image.pixels[right_idx]);
-				edge_cnt++;
+				int weight = getL2norm(image.pixels[curr_idx], image.pixels[right_idx]);
+				if(weight <= maxWeight){
+					graph->edges[edge_cnt].n1 = curr_idx;
+					graph->edges[edge_cnt].n2 = right_idx; 
+					graph->edges[edge_cnt].weight = weight;
+					edge_cnt++;
+				}
+
+				//printf("i %d, j %d n1 %d n2 %d w %u\n", i, j, curr_idx, right_idx, graph->edges[edge_cnt].weight);
+				//printf("calWeightR %d, calWeightG %d, calWeightB %d\n", image.pixels[right_idx].R - image.pixels[curr_idx].R, image.pixels[right_idx].G - image.pixels[curr_idx].G, image.pixels[right_idx].B - image.pixels[curr_idx].B);
+				//printf("Pixel at next [%d]: R = %u G= %u B= %u \n",right_idx, image.pixels[right_idx].R, image.pixels[right_idx].G, image.pixels[right_idx].B);
 			}
 		}
 	}
@@ -197,6 +225,7 @@ unsigned int union_unite(struct Node *nodes, unsigned int n1, unsigned int n2){
 		nodes[n2].parent = nodes[n1].parent;
 		nodes[n1].rank += nodes[n2].rank;
 	}
+	//printf("Uniting %d and %d\n", n1, n2);
 	//maybe check for same ranks here??
 	return n1;
 }
@@ -207,30 +236,26 @@ int computeCredit(int regionSize) {
 struct Region* find_regions(unsigned int width, 
 	unsigned int height, unsigned int minRegionSize, struct Node* nodes){
 	int size = width * height;
-	printf("Size :%d\n", size);
+	//printf("Size :%d\n", size);
 	struct Region* regions = new Region[width*height];
-
-	//memset(regions, 0, sizeof(regions)*height*width);
 	int i;
-	for(i = 0; i < width* height ; i ++){
-		regions[i].size = 0;
-		regions[i].credit = 0;
-		regions[i].rep = 0;
-	}
-	printf("Error?\n");
+	//memset(regions, 0, sizeof(struct Region)*height*width);
 	for (i = 0; i < width*height; i++) {
-		printf("from 1st for i %d\n", i);
-		regions[union_find(nodes, i)].size++;
-		regions[union_find(nodes, i)].rep = union_find(nodes, i);
+		regions[i].size = regions[i].rep = regions[i].credit = 0;
 	}
-	printf("Error first for?\n");
+
+	for (i = 0; i < width*height; i++) {
+		int parent = union_find(nodes, i);
+		regions[parent].size++;
+		regions[parent].rep = parent;
+	}
 	for (int i = 0; i < width*height; i++) {
 		if (regions[i].size >= minRegionSize)
 			regions[i].credit = computeCredit(regions[i].size);
-		else
-			regions[i].credit = 100000;
+		else{
+			regions[i].credit = 1000000;
+		}
 	}
-	printf("Error first second?\n");
 	return regions;
 
 }
@@ -256,13 +281,13 @@ struct Graph* sort_graph(struct Graph* graph){
 struct Graph* lower_bound_combine(struct Graph* graph, 
 	unsigned int min_weight){
 	int i;
+	int united_cnt = 0;
 	for(i = 0; i < graph->num_edges; i++){
 		if(graph->edges[i].weight <= min_weight){
 			union_unite(graph->nodes, graph->edges[i].n1, graph->edges[i].n2);
-
 		}
 	}
-
+	return graph;
  }
 
 bool isUnited(struct Node* nodes, unsigned int a, unsigned int b) {
@@ -275,8 +300,9 @@ void edge_heursitc(struct Graph* graph, struct Region* regions, unsigned int min
  	struct Edge* edges = graph->edges;
  	unsigned int edge_cnt = graph->num_edges;
  	int i;
+ 	int united_cnt = 0;
  	for(i = 0; i < edge_cnt; i++){
- 		if(edges[i].weight >= minWeight){
+ 		if(edges[i].weight <= minWeight){
  			continue;
  		}
  		if(!isUnited(graph->nodes, edges[i].n1, edges[i].n2)){
@@ -286,13 +312,19 @@ void edge_heursitc(struct Graph* graph, struct Region* regions, unsigned int min
 			if (credit > edges[i].weight) {
 				int s = union_unite(graph->nodes, a, b);
 				regions[s].credit = credit - edges[i].weight;
+				united_cnt++;
 			}
 
  		}
  	}
+ 	printf("United cnt%d\n", united_cnt);
 
  }
 
+struct SegmentationData{
+	int* segment;
+	int segmentCount;
+};
 int main(int argc, char *argv[]){
 
 	bool inpFileExists = false;
@@ -307,7 +339,7 @@ int main(int argc, char *argv[]){
 	std::string inpImg;
 	std::string outImg;
 
-	char* optstring = "hg:i:m:M:r"; //"hg:r:R:n:s:i:q";
+	char* optstring = "hg:i:m:M:r:"; //"hg:r:R:n:s:i:q";
 	char c;
 
 	while((c = getopt(argc, argv, optstring)) != -1){
@@ -328,16 +360,27 @@ int main(int argc, char *argv[]){
 				printf("output:%s\n", outImg.c_str());
 				printf("input:%s\n", inpImg.c_str());
 				printf("width: %d, height: %d \n", image.width, image.height);
+				int i, j;
+				for(j = 0; j < image.width; j++){
+					for(i = 0 ; i < image.height; i++){
+						int curr_idx = i * image.width + j;
+						//printf("Pixel at [%d]: R = %u G= %u B= %u \n",curr_idx, image.pixels[curr_idx].R, image.pixels[curr_idx].G, image.pixels[curr_idx].B);
+					}
+				}
 				 
 			break;
 			case 'm':
+						printf("her8?\n");
 				minWeight = atoi(optarg);
 			break;
 			case 'M':
+						printf("her9?\n");
 				maxWeight = atoi(optarg);
 			break;
 			case 'r':
+						
 				minRegion = atoi(optarg);
+				printf("00?\n");
 			break;
 		}
 	}
@@ -347,9 +390,8 @@ int main(int argc, char *argv[]){
 	}
 	/*add gaussian noise*/
 	//add_gaussian_noise(image.pixels);
-	
 	//add graph
-	graph = build_graph(image);
+	graph = build_graph(image, maxWeight);
 	//sort edges according to their weights
 	graph = sort_graph(graph);
 	//graph now has the sorted edges. 
@@ -358,17 +400,67 @@ int main(int argc, char *argv[]){
 	//graph = mege_nodes(graph);
 
 	graph = lower_bound_combine(graph, minWeight);
+	
 	//combine the ones below the minimum weight
-	//error in this function
-	printf("Lower Bound?? \n");
-	//printf()
 	struct Region* regions = find_regions(image.width, image.height, minRegion, graph->nodes);
-	printf("find_regions?\n");	
 	//Use credit to expand the remaining regions
 	edge_heursitc(graph, regions, minWeight);
-	printf("edges?\n");
+	printf("here5\n");
 	//count the number of regions
 	//make another array??
 	//Finally write to the output image
 	//outImage(regions)
+
+
+	int w = image.width;
+	int h = image.height;
+
+	int* repTable = new int[w*h];
+	int idx = 0;
+	for (int i = 0; i < w*h; i++) {
+		if (i == union_find(graph->nodes, i)) {
+			repTable[i] = idx++;
+		}
+	}
+	int* regionals = new int[w*h];
+	for (int i = 0; i < w*h; i++) {
+		regionals[i] = repTable[union_find(graph->nodes, i)];
+	}
+	printf("idx %d\n", idx);
+	SegmentationData data = { regionals, idx };
+	
+	//for now copying the orig code
+
+	std::vector<int> v(data.segmentCount, 0);
+	for (int i = 0; i < w*h; i++)
+	{
+		v[data.segment[i]]++;
+	}
+	std::vector<int> segColorsR(data.segmentCount, 0);
+	std::vector<int> segColorsG(data.segmentCount, 0);
+	std::vector<int> segColorsB(data.segmentCount, 0);
+	idx = 0;
+	std::vector<unsigned char> rawColors(w*h*4);
+	printf("Number of segments: %d \n", data.segmentCount);
+	for (int i = 0; i < data.segmentCount; i++){
+        segColorsR[i] = rand();
+        segColorsG[i] = rand();
+        segColorsB[i] = rand();
+    }
+	for (int i = 0; i < w * h; i++) {
+		//if ((i % w != 0 && data.segment[i - 1] != data.segment[i]) || (i % w + 1 != w && data.segment[i + 1] != data.segment[i])
+		//	|| (i / w != 0 && data.segment[i - w] != data.segment[i]) || (i / w + 1 != h && data.segment[i + w] != data.segment[i])) {
+		//	rawColors[i * 4] = 0;
+		//	rawColors[i * 4 + 1] = 0;
+		//	rawColors[i * 4 + 2] = 0;
+		//	rawColors[i * 4 + 3] = 255;
+		//}
+		//else {
+			rawColors[i * 4] = std::max(0, segColorsR[data.segment[i]] / v[data.segment[i]]);
+			rawColors[i * 4 + 1] = std::max(0, segColorsG[data.segment[i]] / v[data.segment[i]]);
+			rawColors[i * 4 + 2] = std::max(0, segColorsB[data.segment[i]] / v[data.segment[i]]);
+			rawColors[i * 4 + 3] = 255;
+		//}
+	}
+	lodepng::encode(outImg, rawColors, w, h);
 }
