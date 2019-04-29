@@ -233,7 +233,7 @@ SegmentationData segmentImage(unsigned char* rgb, int height,
 int main(){
 	std::vector<unsigned char> tmp;
 	unsigned int w, h;
-	lodepng::decode(tmp, w, h, "4squaresSmall.png");
+	lodepng::decode(tmp, w, h, "3.png");
 	unsigned char* rgb = new unsigned char[3 * w*h];
 	for (int i = 0; i < w*h; i++)
 	{
